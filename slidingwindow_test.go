@@ -90,6 +90,39 @@ func TestLimiter_LocalWindow_AllowN(t *testing.T) {
 	}
 }
 
+func TestLimiter_LocalWindow_LimitReachedN(t *testing.T) {
+	lim, _ := NewLimiter(size, limit, func() (Window, StopFunc) {
+		return NewLocalWindow()
+	})
+
+	// prev-window: empty, count: 0
+	// curr-window: [t0, t0 + 1s), count: 5
+	lim.AllowN(t0, 5)
+
+	cases := []caseArg{
+		{t1, 0, false},
+		{t1, 1, false},
+		{t1, 5, true},
+		{t1, 6, true},
+
+		// prev-window: [t0, t0 + 1s), count: 5
+		// curr-window: [t10, t10 + 1s), count: 0
+		{t10, 0, false},
+		{t10, 1, false},
+		{t10, 5, true},
+		{t12, 5, false}, // count will be (4/5*5 + 0 + 5) ≈ 9, so it fails
+	}
+	for _, c := range cases {
+		t.Run("", func(t *testing.T) {
+			ok := lim.LimitReachedN(c.t, c.n)
+			if ok != c.ok {
+				t.Errorf("lim.LimitReachedN(%v, %v) = %v, want: %v",
+					c.t, c.n, ok, c.ok)
+			}
+		})
+	}
+}
+
 type MemDatastore struct {
 	data map[string]int64
 	mu   sync.RWMutex

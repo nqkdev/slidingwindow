@@ -112,6 +112,20 @@ func (lim *Limiter) AllowN(now time.Time, n int64) bool {
 	return true
 }
 
+// LimitReachedN reports whether the limit has been reached.
+func (lim *Limiter) LimitReachedN(now time.Time, n int64) bool {
+	lim.mu.Lock()
+	defer lim.mu.Unlock()
+
+	lim.advance(now)
+
+	elapsed := now.Sub(lim.curr.Start())
+	weight := float64(lim.size-elapsed) / float64(lim.size)
+	count := int64(weight*float64(lim.prev.Count())) + lim.curr.Count()
+
+	return count+n >= lim.limit
+}
+
 // advance updates the current/previous windows resulting from the passage of time.
 func (lim *Limiter) advance(now time.Time) {
 	// Calculate the start boundary of the expected current-window.
