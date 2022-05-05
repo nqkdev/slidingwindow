@@ -112,6 +112,27 @@ func (lim *Limiter) AllowN(now time.Time, n int64) bool {
 	return true
 }
 
+// TakeN reports whether n events may happen at time now while adds the n events to the count anyway.
+func (lim *Limiter) TakeN(now time.Time, n int64) bool {
+	lim.mu.Lock()
+	defer lim.mu.Unlock()
+
+	lim.advance(now)
+
+	elapsed := now.Sub(lim.curr.Start())
+	weight := float64(lim.size-elapsed) / float64(lim.size)
+	count := int64(weight*float64(lim.prev.Count())) + lim.curr.Count()
+
+	// Trigger the possible sync behaviour.
+	defer lim.curr.Sync(now)
+
+	allowed := count+n > lim.limit
+
+	lim.curr.AddCount(n)
+
+	return allowed
+}
+
 // LimitReachedN reports whether the limit has been reached.
 func (lim *Limiter) LimitReachedN(now time.Time, n int64) bool {
 	lim.mu.Lock()
